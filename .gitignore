@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.db
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+reports/
+
+# Local working notes, not part of the project
+CLAUDE.md
+project.md
