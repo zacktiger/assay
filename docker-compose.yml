@@ -1,0 +1,50 @@
+# Local production-shaped stack: the API against Postgres rather than sqlite.
+# The QA suite still runs in-process on sqlite; this is for exercising the
+# deployment path and the Postgres-only code (row locks in the transaction
+# endpoint) that sqlite never reaches.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: qa
+      POSTGRES_PASSWORD: qa
+      POSTGRES_DB: qa_finance
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qa -d qa_finance"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build: .
+    command: python -m scripts.init_db
+    environment:
+      DATABASE_URL: postgresql+psycopg://qa:qa@db:5432/qa_finance
+      ENVIRONMENT: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://qa:qa@db:5432/qa_finance
+      ENVIRONMENT: production
+      AUTO_CREATE_TABLES: "false"
+      ENABLE_DOCS: "false"
+      LLM_PROVIDER: stub
+      WEB_CONCURRENCY: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

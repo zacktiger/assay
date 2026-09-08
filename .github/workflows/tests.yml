@@ -1,0 +1,61 @@
+name: tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # No network and no API key: the suite runs against the deterministic
+      # stub provider, so CI needs no secrets and cannot be flaky on a
+      # third-party outage.
+      - name: Run the suite
+        env:
+          LLM_PROVIDER: stub
+        run: pytest -q --cov=app --cov-report=term --cov-report=xml
+
+      - name: Schema bootstrap is idempotent
+        run: |
+          python -m scripts.init_db
+          python -m scripts.init_db
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t qa-finance-api .
+      - name: Container serves traffic
+        run: |
+          docker run -d --name api -p 8000:8000 \
+            -e ENVIRONMENT=production \
+            -e AUTO_CREATE_TABLES=true \
+            qa-finance-api
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:8000/health/ready
+          docker logs api
