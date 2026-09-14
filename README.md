@@ -1,4 +1,6 @@
-# AI Finance API — QA & Evaluation Framework
+# assay
+
+[![tests](https://github.com/zacktiger/assay/actions/workflows/tests.yml/badge.svg)](https://github.com/zacktiger/assay/actions/workflows/tests.yml)
 
 A small investing API with an LLM-backed explanation layer, built as the system
 under test for an automated QA suite. **The QA system is the project**; the
@@ -23,15 +25,15 @@ computed itself.
 |---|---|
 | Tests collected | 274 |
 | Passing | 271 |
-| Known-limitation xfails | 3 |
+| Expected failures (xfail) | 3 — the cases of one accepted limitation |
 | API endpoints under test | 13 (11 business + 2 ops probes) |
 | LLM evaluation cases | 18 (`qa/eval_dataset.csv`) |
 | Defects found and fixed | 3 (1 critical, 2 low) |
 | Accepted limitations | 1, documented with a strict xfail |
 | Test-expectation errors triaged | 2 |
-| Application / test code | 1,560 / 2,560 lines |
+| Application / test code | 1,586 / 2,609 lines of Python |
 | Full-suite runtime | ~49s, no network, no API key |
-| Statement coverage | 93% (`app/`, excluding the live-LLM provider) |
+| Statement coverage | 93% of `app/` (the untested live-LLM provider is most of the gap) |
 
 Tests carrying each marker — markers overlap, so these sum to more than the
 total:
@@ -80,29 +82,29 @@ real HTTP rather than in-process, use `qa/api_client.py`.
 ## Architecture
 
 ```
-        POST /recommendation
-                 │
-                 ▼
-        ┌─────────────────┐
-        │  FastAPI + Pydantic  │  bounds enforced once, from app/config.py
-        └────────┬─────────┘
-                 │
-                 ▼
-        ┌─────────────────┐
-        │  app/finance.py  │  ALL arithmetic, in Decimal
-        └────────┬─────────┘
-                 │  computed figures
-                 ▼
-        ┌─────────────────┐
-        │   LLM provider   │  explains the figures; never computes them
-        └────────┬─────────┘
-                 │  untrusted text
-                 ▼
-        ┌─────────────────┐
-        │ app/llm/guardrails │  validates against the computed figures
-        └────────┬─────────┘
-                 │
-         pass ───┴─── fail → deterministic fallback text
+       POST /recommendation
+                │
+                ▼
+     ┌──────────────────────┐
+     │  FastAPI + Pydantic  │  bounds enforced once, from app/config.py
+     └──────────┬───────────┘
+                │
+                ▼
+     ┌──────────────────────┐
+     │    app/finance.py    │  ALL arithmetic, in Decimal
+     └──────────┬───────────┘
+                │  computed figures
+                ▼
+     ┌──────────────────────┐
+     │     LLM provider     │  explains the figures; never computes them
+     └──────────┬───────────┘
+                │  untrusted text
+                ▼
+     ┌──────────────────────┐
+     │  app/llm/guardrails  │  validates against the computed figures
+     └──────────┬───────────┘
+                │
+        pass ───┴─── fail → deterministic fallback text
 ```
 
 The split is the whole design. **The model never does arithmetic.** It is handed
@@ -232,11 +234,11 @@ a comment.
   retries only.
 - **Live-model evaluation.** Every LLM test runs against the stub. That buys
   determinism and a free CI run; it does not tell you how the real model behaves.
-  The guardrail is provider-independent and is the part that would hold.
+  `AnthropicProvider` is written against the current SDK but has never made a
+  real call. The guardrail is provider-independent and is the part that would
+  hold.
 - **Load and soak.** Response-time assertions here are per-request budgets
   (<500ms reads, <1.5s registration), not throughput measurements.
 - **Frontend.** There isn't one; this is an API and its test suite.
 - **Schema migrations.** `scripts/init_db.py` is create-only; altering a table
   against live data needs Alembic, which is not set up.
-- **The live LLM path.** `AnthropicProvider` is written against the current SDK
-  but every test runs the stub, so it has never made a real call.
