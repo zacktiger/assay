@@ -17,6 +17,15 @@ computed itself.
 274 tests   271 passing   3 xfail (documented)   3 defects found and fixed
 ```
 
+**Live:** [assay-api-mw3v.onrender.com/docs](https://assay-api-mw3v.onrender.com/docs)
+— the OpenAPI page is the demo surface; every bound it publishes is one the
+boundary tests pin down. Free tier, so the first request after fifteen idle
+minutes pays a cold start.
+
+```bash
+curl https://assay-api-mw3v.onrender.com/health/ready   # {"status":"ready","database":"up"}
+```
+
 ---
 
 ## Results
@@ -200,6 +209,12 @@ rule it is testing.
 ---
 
 ## Deploying it
+
+Running at
+[assay-api-mw3v.onrender.com](https://assay-api-mw3v.onrender.com/docs) on
+Render's free tier — Docker, one worker, managed Postgres, schema created by
+`scripts.init_db` as an ordered release step before the server binds. The
+blueprint is [`render.yaml`](render.yaml).
 
 ```bash
 docker compose up --build        # API + Postgres, schema created by the migrate step
