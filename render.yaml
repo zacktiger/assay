@@ -10,13 +10,11 @@ services:
     plan: free
     region: oregon
     dockerfilePath: ./Dockerfile
-    # Schema creation stays a release step rather than an app startup hook.
-    # With one worker there is no CREATE TABLE race, and a failure here fails
-    # the deploy instead of surfacing as a 500 on the first request.
-    dockerCommand: >-
-      sh -c "python -m scripts.init_db &&
-      exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
-      --workers 1 --proxy-headers --forwarded-allow-ips='*'"
+    # One token per word and no quotes: Render re-parses this string, and an
+    # inline `sh -c "..."` arrives at the shell with its double quotes intact,
+    # which makes the whole pipeline a single command name (exit 127). The
+    # ordering - init_db, then uvicorn - lives in the script.
+    dockerCommand: sh /srv/app/scripts/start.sh
     # /health deliberately does not touch the database - correct for liveness.
     healthCheckPath: /health
     envVars:

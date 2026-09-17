@@ -35,6 +35,13 @@ curl https://<service>.onrender.com/health/ready  # {"status":"ready","database"
 
 `/docs` is on for this deploy — see the comment in `render.yaml`.
 
+The start command is `sh /srv/app/scripts/start.sh`, and the ordering —
+`scripts.init_db`, then uvicorn — lives in that script rather than inline in
+`render.yaml`. Render re-parses the `dockerCommand` string, and an inline
+`sh -c "a && b"` reaches the shell with its double quotes intact, so the whole
+pipeline becomes one command name and the container exits 127. Render's
+pre-deploy hook, which is where a release step belongs, is a paid-plan feature.
+
 What the free tier costs you, stated plainly:
 
 - **The service sleeps after 15 minutes idle.** The next request pays a cold
