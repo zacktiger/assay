@@ -19,6 +19,39 @@ python -m scripts.init_db        # release step - run once, before the API start
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'
 ```
 
+## Free-tier deploy (Render)
+
+`render.yaml` is a blueprint for a free Docker web service plus a free Postgres
+instance. From the repo root:
+
+1. Push the branch to GitHub.
+2. Render dashboard → **New → Blueprint** → pick this repo → **Apply**.
+3. First build takes a few minutes. Then:
+
+```bash
+curl https://<service>.onrender.com/health        # {"status":"ok"}
+curl https://<service>.onrender.com/health/ready  # {"status":"ready","database":"up"}
+```
+
+`/docs` is on for this deploy — see the comment in `render.yaml`.
+
+What the free tier costs you, stated plainly:
+
+- **The service sleeps after 15 minutes idle.** The next request pays a cold
+  start of roughly 50 seconds. A `/health` probe is enough to wake it.
+- **The free database expires 30 days after creation.** Render will not migrate
+  it. Recreate the blueprint, or move to a paid instance, before then.
+- **One worker, no gateway rate limiting.** Same caveat as everywhere else in
+  this document: the login throttle is in-process.
+- **No backups.** The free plan has none. Nothing in this deploy is worth
+  restoring — it holds demo data.
+
+Render supplies `DATABASE_URL` as a driverless `postgres://` URL, which
+SQLAlchemy reads as psycopg2 — a driver this image does not install. The
+rewrite to `postgresql+psycopg://` happens in `_database_url` in
+`app/config.py`; nothing but the driver is touched. Set `DATABASE_URL`
+explicitly and it is honoured as written.
+
 ## What `ENVIRONMENT=production` changes
 
 Two defaults flip, and both can be overridden explicitly:

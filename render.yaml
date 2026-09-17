@@ -1,0 +1,48 @@
+# Render blueprint - free tier, Docker, one worker.
+#
+# This is the demo deployment: it exists so the API under test is reachable at
+# a URL, not to serve real money. The differences from docs/DEPLOY.md are
+# deliberate and listed there under "Free-tier deploy".
+services:
+  - type: web
+    name: assay-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    # Schema creation stays a release step rather than an app startup hook.
+    # With one worker there is no CREATE TABLE race, and a failure here fails
+    # the deploy instead of surfacing as a 500 on the first request.
+    dockerCommand: >-
+      sh -c "python -m scripts.init_db &&
+      exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+      --workers 1 --proxy-headers --forwarded-allow-ips='*'"
+    # /health deliberately does not touch the database - correct for liveness.
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: AUTO_CREATE_TABLES
+        value: "false"
+      # Production default is off. On for the demo: the OpenAPI page is the
+      # thing a reviewer actually clicks, and every bound it publishes is
+      # already documented in the README.
+      - key: ENABLE_DOCS
+        value: "true"
+      # The in-process login throttle caps this at 1 - see docs/DEPLOY.md.
+      - key: WEB_CONCURRENCY
+        value: "1"
+      # Deterministic offline provider. No API key, no spend, no rate limit.
+      - key: LLM_PROVIDER
+        value: stub
+      - key: DATABASE_URL
+        fromDatabase:
+          name: assay-db
+          property: connectionString
+
+databases:
+  - name: assay-db
+    plan: free
+    region: oregon
+    databaseName: qa_finance
+    user: qa

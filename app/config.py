@@ -29,6 +29,22 @@ def _csv(name: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def _database_url() -> str:
+    """Read DATABASE_URL, naming the psycopg driver when the host omits it.
+
+    Managed Postgres providers hand out a bare `postgres://` or `postgresql://`
+    URL. SQLAlchemy reads a driverless postgresql URL as psycopg2, which this
+    image does not install, so the process would die at import with a missing
+    driver. Only the driver is rewritten; host, credentials and query string
+    are left exactly as the platform gave them.
+    """
+    url = os.getenv("DATABASE_URL", "sqlite:///./finance.db").strip()
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
 IS_PRODUCTION = ENVIRONMENT == "production"
 
@@ -36,7 +52,7 @@ IS_PRODUCTION = ENVIRONMENT == "production"
 @dataclass(frozen=True)
 class Settings:
     environment: str = ENVIRONMENT
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./finance.db")
+    database_url: str = field(default_factory=_database_url)
     llm_provider: str = os.getenv("LLM_PROVIDER", "stub")
     llm_model: str = os.getenv("LLM_MODEL", "claude-opus-5")
     token_ttl_seconds: int = int(os.getenv("TOKEN_TTL_SECONDS", "3600"))
