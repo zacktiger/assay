@@ -28,6 +28,50 @@ curl https://assay-api-mw3v.onrender.com/health/ready   # {"status":"ready","dat
 
 ---
 
+## In plain words
+
+**What this is.** A small investing API (sign up, deposit money, ask for a
+recommendation) plus 274 automated tests that try to break it. The tests are
+the project. The API is there to give them something real to test.
+
+**How it's built.** A request goes through four steps:
+
+1. **Check the input.** FastAPI rejects anything outside the rules, such as an
+   investment below ₹1,000 or above ₹1,00,000, with a `422` that names the
+   field. The rules are written once, in `app/config.py`.
+2. **Do the maths.** `app/finance.py` computes every number using exact
+   decimals, never floats, so money never picks up rounding errors.
+3. **Explain it.** The AI model gets the finished numbers and only puts them
+   into words. It never calculates anything.
+4. **Check the explanation.** `app/llm/guardrails.py` compares every number in
+   the AI's answer with the real ones. An answer that invents a number, promises
+   a guaranteed return, or leaks the model's hidden instructions is thrown away
+   and replaced with safe pre-written text.
+
+Data goes to SQLite when running locally and to Postgres in the live
+deployment.
+
+**How the testing works.** It's plain `pytest`. One command runs all 274
+tests in about a minute, with no internet and no API key. The real AI model is
+swapped for a predictable fake (`StubProvider` in `app/llm/stub.py`) that
+always gives the same answer to the same input, which is what makes an AI
+feature testable at all. For the AI tests, a second fake (`ScriptedProvider`)
+feeds the checker deliberately bad answers, such as a made-up return rate or a
+leaked prompt, and the test confirms each one gets caught.
+
+Tests are tagged by what they check, so one group can run on its own
+(`pytest -m boundary`, `pytest -m security`, and so on). GitHub Actions runs
+the full suite on every push; that's the badge at the top.
+
+**What the tests found.** Three real bugs, all fixed, each with a test that
+keeps it fixed. The worst one made every out-of-range amount crash with a
+`500` instead of returning "invalid input" (`422`). The tests also turned up
+one limitation that was deliberately left in place, and two cases where the
+test turned out to be wrong and the app was right. All six are written up in
+[`docs/BUGS.md`](docs/BUGS.md).
+
+---
+
 ## Results
 
 | | |
